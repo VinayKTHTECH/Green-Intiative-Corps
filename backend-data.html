@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>backend data</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .wrap-narrow { max-width: 900px; }
+    textarea { width:100%; min-height: 280px; padding:10px; border-radius:8px; border:1px solid var(--muted); background:#0f1630; color:var(--text); font-family: ui-monospace,SFMono-Regular,Consolas,Monaco,"Liberation Mono","Courier New",monospace; }
+    .kv { display:grid; grid-template-columns: 200px 1fr; gap:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap wrap-narrow">
+      <h1>backend data</h1>
+      <div class="muted">Hidden maintenance page for local data inspection and backup. Not linked in app.</div>
+    </div>
+  </header>
+  <main class="wrap wrap-narrow">
+    <section class="card">
+      <h3>Storage Overview</h3>
+      <div class="kv">
+        <div class="muted">Storage Key</div>
+        <div><code id="sk"></code></div>
+        <div class="muted">Size</div>
+        <div><span id="size"></span></div>
+      </div>
+      <div class="actions" style="margin-top:12px;">
+        <button class="btn" onclick="reloadData()">Reload</button>
+        <button class="btn" onclick="formatJson()">Format</button>
+        <button class="btn primary" onclick="saveFromEditor()">Save</button>
+        <button class="btn" onclick="exportJson()">Export JSON</button>
+        <label class="btn" style="cursor:pointer;">Import JSON<input type="file" accept="application/json" style="display:none" onchange="importJson(this)"></label>
+        <button class="btn danger" onclick="wipeAll()">Wipe All</button>
+      </div>
+      <textarea id="editor" spellcheck="false"></textarea>
+    </section>
+
+    <section class="card">
+      <h3>Quick Totals</h3>
+      <div class="grid">
+        <div class="card"><div class="muted">Deposits</div><div id="t-dep" style="font-size:22px;"></div></div>
+        <div class="card"><div class="muted">Shop Inventory</div><div id="t-shop" style="font-size:22px;"></div></div>
+        <div class="card"><div class="muted">Biogas kWh</div><div id="t-bio" style="font-size:22px;"></div></div>
+        <div class="card"><div class="muted">WtE kWh</div><div id="t-wte" style="font-size:22px;"></div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Navigation</h3>
+      <div class="actions">
+        <a class="btn" href="index.html">Open Main App</a>
+      </div>
+    </section>
+  </main>
+  <footer class="wrap wrap-narrow">
+    This page manipulates only your browser's localStorage; no server.
+  </footer>
+
+  <script>
+    const StorageKey = 'wm-proto-v1';
+    const fmt = (n,d=2)=> Number(n||0).toFixed(d);
+    function load() {
+      document.getElementById('sk').textContent = StorageKey;
+      reloadData();
+    }
+    function reloadData() {
+      const raw = localStorage.getItem(StorageKey) || '{}';
+      document.getElementById('editor').value = raw;
+      document.getElementById('size').textContent = new Blob([raw]).size + ' bytes';
+      try { const data = JSON.parse(raw); updateTotals(data); } catch { clearTotals(); }
+    }
+    function formatJson() {
+      try {
+        const obj = JSON.parse(document.getElementById('editor').value || '{}');
+        document.getElementById('editor').value = JSON.stringify(obj, null, 2);
+      } catch { alert('Invalid JSON'); }
+    }
+    function saveFromEditor() {
+      try {
+        const txt = document.getElementById('editor').value || '{}';
+        JSON.parse(txt); // validate
+        localStorage.setItem(StorageKey, txt);
+        reloadData();
+        alert('Saved');
+      } catch { alert('Invalid JSON, not saved'); }
+    }
+    function exportJson() {
+      const raw = localStorage.getItem(StorageKey) || '{}';
+      const blob = new Blob([raw], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'wm-prototype-backup.json'; a.click();
+      URL.revokeObjectURL(url);
+    }
+    function importJson(input) {
+      const file = input.files[0]; if (!file) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        try { JSON.parse(fr.result); localStorage.setItem(StorageKey, fr.result); reloadData(); alert('Imported'); }
+        catch { alert('Invalid file'); }
+      };
+      fr.readAsText(file);
+    }
+    function wipeAll() { if (confirm('Wipe all data?')) { localStorage.removeItem(StorageKey); reloadData(); } }
+
+    function updateTotals(s) {
+      const sum = (arr, k) => (arr||[]).reduce((t,x)=>t+Number(x[k]||0),0);
+      const depositsKg = sum(s.citizens||[], 'weightKg');
+      const shopKg = sum(s.shopInventory||[], 'weightKg');
+      const biogasKWh = sum(s.biogas||[], 'electricityKWh');
+      const wteKWh = sum(s.wte||[], 'electricityKWh');
+      document.getElementById('t-dep').textContent = fmt(depositsKg) + ' kg';
+      document.getElementById('t-shop').textContent = fmt(shopKg) + ' kg';
+      document.getElementById('t-bio').textContent = fmt(biogasKWh) + ' kWh';
+      document.getElementById('t-wte').textContent = fmt(wteKWh) + ' kWh';
+    }
+    function clearTotals() {
+      document.getElementById('t-dep').textContent = '-';
+      document.getElementById('t-shop').textContent = '-';
+      document.getElementById('t-bio').textContent = '-';
+      document.getElementById('t-wte').textContent = '-';
+    }
+    load();
+  </script>
+</body>
+</html>
+
